@@ -5,10 +5,40 @@ import { PHASE1_CONTENT } from "./data/phase1-content";
 import { PHASE2_CONTENT } from "./data/phase2-content";
 import { PHASE3_CONTENT } from "./data/phase3-content";
 import { PHASE4_CONTENT } from "./data/phase4-content";
+import { PHASE1_LAYER2 } from "./data/phase1-layer2-content";
+import { PHASE2_LAYER2 } from "./data/phase2-layer2-content";
+import { PHASE3_LAYER2 } from "./data/phase3-layer2-content";
+import { PHASE4_LAYER2 } from "./data/phase4-layer2-content";
+import { PHASE1_LAYER3 } from "./data/phase1-layer3-content";
+import { PHASE2_LAYER3 } from "./data/phase2-layer3-content";
+import { PHASE3_LAYER3_PART1 } from "./data/phase3-layer3-part1";
+import { PHASE3_LAYER3_PART2 } from "./data/phase3-layer3-part2";
+import { PHASE4_LAYER3_PART1 } from "./data/phase4-layer3-part1";
+import { PHASE4_LAYER3_PART2 } from "./data/phase4-layer3-part2";
 import { TOPIC_BACKLOG } from "./data/topic-backlog";
 import "./App.css";
 
-const ALL_CONTENT = { ...PHASE1_CONTENT, ...PHASE2_CONTENT, ...PHASE3_CONTENT, ...PHASE4_CONTENT };
+// Build layered content: each module gets { layers: { 1: {...}, 2: {...}, 3: {...} } }
+const _L1 = { ...PHASE1_CONTENT, ...PHASE2_CONTENT, ...PHASE3_CONTENT, ...PHASE4_CONTENT };
+const _L2 = { ...PHASE1_LAYER2, ...PHASE2_LAYER2, ...PHASE3_LAYER2, ...PHASE4_LAYER2 };
+const _L3 = {
+  ...PHASE1_LAYER3,
+  ...PHASE2_LAYER3,
+  ...PHASE3_LAYER3_PART1,
+  ...PHASE3_LAYER3_PART2,
+  ...PHASE4_LAYER3_PART1,
+  ...PHASE4_LAYER3_PART2,
+};
+const ALL_CONTENT = {};
+Object.keys(_L1).forEach(id => {
+  ALL_CONTENT[id] = {
+    layers: {
+      1: _L1[id],
+      ...(_L2[id] ? { 2: _L2[id] } : {}),
+      ...(_L3[id] ? { 3: _L3[id] } : {}),
+    },
+  };
+});
 
 const LAYER_LABELS = {
   1: "Einsteiger", 2: "Grundlagen", 3: "Practitioner", 4: "Fortgeschritten",
@@ -63,6 +93,7 @@ export default function App() {
   const [activeView, setActiveView] = useState("dashboard");
   const [selectedModule, setSelectedModule] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
+  const [currentLayer, setCurrentLayer] = useState(1);
   const [moduleStatuses, setModuleStatuses] = useState(() => {
     const s = {};
     ALL_MODULES.forEach(m => { s[m.id] = "open"; });
@@ -191,6 +222,7 @@ export default function App() {
     setSelectedModule(mod);
     setActiveView("module");
     setCurrentStep(0);
+    setCurrentLayer(1);
     setSearchQuery("");
   };
 
@@ -370,7 +402,7 @@ export default function App() {
                 </div>
                 <div className="modules-grid">
                   {phase.modules.map(mod => {
-                    const modLayer = ALL_CONTENT[mod.id]?.layerLevel ?? 1;
+                    const modLayer = ALL_CONTENT[mod.id] ? Math.max(...Object.keys(ALL_CONTENT[mod.id].layers).map(Number)) : 1;
                     return (
                     <div key={mod.id} className="module-card" onClick={() => openModule(mod)}>
                       <div className="module-card-top">
@@ -436,10 +468,16 @@ export default function App() {
           const phase = CURRICULUM.phases.find(p => p.id === mod.phaseId);
           const content = ALL_CONTENT[mod.id];
           const backlog = TOPIC_BACKLOG[mod.id];
-          const steps = content?.steps || [];
+          const availableLayers = content ? Object.keys(content.layers).map(Number).sort() : [];
+          const layerContent = content?.layers?.[currentLayer];
+          const steps = layerContent?.steps || [];
           const totalSteps = steps.length;
           const isGfScreen = currentStep === totalSteps;
           const step = !isGfScreen ? steps[currentStep] : null;
+          // Locked layers from backlog (planned but not yet available)
+          const lockedLayers = backlog?.upcomingTopics
+            ? [...new Set(backlog.upcomingTopics.map(t => t.layer))].filter(l => !availableLayers.includes(l)).sort()
+            : [];
 
           return (
             <div>
@@ -456,10 +494,10 @@ export default function App() {
                     {DIFFICULTY_LABELS[mod.difficulty]}
                   </span>
                   <span className="tag">{mod.hours} Stunden</span>
-                  {content?.estimatedMinutes && (
-                    <span className="tag">⏱ {content.estimatedMinutes} Min</span>
+                  {layerContent?.estimatedMinutes && (
+                    <span className="tag">⏱ {layerContent.estimatedMinutes} Min</span>
                   )}
-                  <LayerBadge layer={content?.layerLevel ?? 1} />
+                  <LayerBadge layer={currentLayer} />
                 </div>
                 <h1 className="module-title">{mod.title}</h1>
                 <p className="module-summary">{mod.summary}</p>
@@ -471,6 +509,26 @@ export default function App() {
                   <span className="status-hint">Klicken zum Wechseln</span>
                 </div>
               </div>
+
+              {/* LAYER SELECTOR */}
+              {(availableLayers.length > 1 || lockedLayers.length > 0) && (
+                <div className="layer-selector">
+                  <span className="layer-selector-label">Wissenslayer:</span>
+                  {availableLayers.map(l => (
+                    <button key={l}
+                      className={`layer-tab ${currentLayer === l ? "active" : ""}`}
+                      style={currentLayer === l ? { background: LAYER_COLORS[l], color: "#fff", borderColor: LAYER_COLORS[l] } : {}}
+                      onClick={() => { setCurrentLayer(l); setCurrentStep(0); }}>
+                      L{l} · {LAYER_LABELS[l]}
+                    </button>
+                  ))}
+                  {lockedLayers.map(l => (
+                    <button key={l} className="layer-tab layer-tab-locked" disabled title="In Vorbereitung">
+                      🔒 L{l}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* Step progress bar */}
               {totalSteps > 0 && (
@@ -499,7 +557,7 @@ export default function App() {
                   <section className="content-section step-section">
                     <div className="step-section-header">
                       <h2 className="step-title">{step.title}</h2>
-                      <LayerBadge layer={step.layer ?? content?.layerLevel ?? 1} small />
+                      <LayerBadge layer={step.layer ?? currentLayer} small />
                     </div>
                     <Markdown text={step.content} />
                   </section>
@@ -534,11 +592,11 @@ export default function App() {
               )}
 
               {/* GF SUMMARY SCREEN */}
-              {isGfScreen && content?.gfSummary && (
+              {isGfScreen && layerContent?.gfSummary && (
                 <>
                   <section className="content-section gf-section">
-                    <h3 className="section-label gf-label">👔 Für die Geschäftsführung</h3>
-                    <p className="section-text gf-text">{content.gfSummary}</p>
+                    <h3 className="section-label gf-label">👔 Für die Geschäftsführung — Layer {currentLayer}</h3>
+                    <p className="section-text gf-text">{layerContent.gfSummary}</p>
                   </section>
 
                   <div className="step-nav">
@@ -554,8 +612,8 @@ export default function App() {
                 </>
               )}
 
-              {/* Fallback if no rich content */}
-              {!content && (
+              {/* Fallback if no rich content for this layer */}
+              {!layerContent && (
                 <>
                   <section className="content-section analogy-section">
                     <h3 className="section-label analogy-label">💡 Analogie zum Verstehen</h3>
