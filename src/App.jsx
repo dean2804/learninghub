@@ -1,11 +1,68 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./lib/supabase";
 import { CURRICULUM, ALL_MODULES, NOTIFICATIONS, DIFFICULTY_LABELS, STATUS_LABELS, STATUS_COLORS } from "./data/curriculum";
+import { PHASE1_CONTENT } from "./data/phase1-content";
+import { PHASE2_CONTENT } from "./data/phase2-content";
+import { PHASE3_CONTENT } from "./data/phase3-content";
+import { PHASE4_CONTENT } from "./data/phase4-content";
+import { TOPIC_BACKLOG } from "./data/topic-backlog";
 import "./App.css";
 
+const ALL_CONTENT = { ...PHASE1_CONTENT, ...PHASE2_CONTENT, ...PHASE3_CONTENT, ...PHASE4_CONTENT };
+
+const LAYER_LABELS = {
+  1: "Einsteiger", 2: "Grundlagen", 3: "Practitioner", 4: "Fortgeschritten",
+  5: "Experte", 6: "Senior Experte", 7: "Spezialist", 8: "Deep Specialist",
+  9: "Researcher", 10: "Frontier",
+};
+const LAYER_COLORS = {
+  1: "#2D6A4F", 2: "#1B6CA8", 3: "#7C3AED", 4: "#B45309",
+  5: "#DC2626", 6: "#9D174D", 7: "#065F46", 8: "#1E3A5F",
+  9: "#3B1F5E", 10: "#111827",
+};
+
+function LayerBadge({ layer, small }) {
+  const color = LAYER_COLORS[layer] || LAYER_COLORS[1];
+  return (
+    <span className={`layer-badge ${small ? "layer-badge-small" : ""}`}
+      style={{ background: `${color}22`, color, border: `1px solid ${color}55` }}>
+      L{layer} · {LAYER_LABELS[layer]}
+    </span>
+  );
+}
+
+// Simple markdown renderer: **bold**, *italic*, `code`, newlines
+function Markdown({ text }) {
+  if (!text) return null;
+  const lines = text.split("\n");
+  return (
+    <div className="md-content">
+      {lines.map((line, i) => {
+        if (line.trim() === "") return <br key={i} />;
+        const parts = line.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g);
+        return (
+          <p key={i} style={{ margin: "0 0 4px" }}>
+            {parts.map((part, j) => {
+              if (part.startsWith("**") && part.endsWith("**"))
+                return <strong key={j}>{part.slice(2, -2)}</strong>;
+              if (part.startsWith("*") && part.endsWith("*"))
+                return <em key={j}>{part.slice(1, -1)}</em>;
+              if (part.startsWith("`") && part.endsWith("`"))
+                return <code key={j} className="inline-code">{part.slice(1, -1)}</code>;
+              return part;
+            })}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function App() {
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
   const [activeView, setActiveView] = useState("dashboard");
   const [selectedModule, setSelectedModule] = useState(null);
+  const [currentStep, setCurrentStep] = useState(0);
   const [moduleStatuses, setModuleStatuses] = useState(() => {
     const s = {};
     ALL_MODULES.forEach(m => { s[m.id] = "open"; });
@@ -19,6 +76,12 @@ export default function App() {
   const [saveIndicator, setSaveIndicator] = useState("");
   const notifRef = useRef(null);
   const saveTimeout = useRef(null);
+
+  // Theme
+  useEffect(() => {
+    document.body.classList.toggle("light", theme === "light");
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
   // ============================================================
   // SUPABASE: Load data on mount
@@ -127,6 +190,7 @@ export default function App() {
   const openModule = (mod) => {
     setSelectedModule(mod);
     setActiveView("module");
+    setCurrentStep(0);
     setSearchQuery("");
   };
 
@@ -165,6 +229,10 @@ export default function App() {
         </div>
         <div className="header-right">
           {saveIndicator && <span className="save-indicator">{saveIndicator}</span>}
+          <button className="theme-toggle" onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}
+            title={theme === "dark" ? "Zum hellen Modus wechseln" : "Zum dunklen Modus wechseln"}>
+            {theme === "dark" ? "☀" : "☾"}
+          </button>
           <div className="search-wrapper">
             <span className="search-icon">⌕</span>
             <input className="search-input" placeholder="Module durchsuchen..."
@@ -301,7 +369,9 @@ export default function App() {
                   </div>
                 </div>
                 <div className="modules-grid">
-                  {phase.modules.map(mod => (
+                  {phase.modules.map(mod => {
+                    const modLayer = ALL_CONTENT[mod.id]?.layerLevel ?? 1;
+                    return (
                     <div key={mod.id} className="module-card" onClick={() => openModule(mod)}>
                       <div className="module-card-top">
                         <div className="module-card-left">
@@ -319,9 +389,10 @@ export default function App() {
                         <span className="tag tag-difficulty" style={{ color: phase.color, background: `${phase.color}15` }}>
                           {DIFFICULTY_LABELS[mod.difficulty]}
                         </span>
+                        <LayerBadge layer={modLayer} small />
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
             ))}
@@ -363,6 +434,13 @@ export default function App() {
         {selectedModule && activeView === "module" && (() => {
           const mod = selectedModule;
           const phase = CURRICULUM.phases.find(p => p.id === mod.phaseId);
+          const content = ALL_CONTENT[mod.id];
+          const backlog = TOPIC_BACKLOG[mod.id];
+          const steps = content?.steps || [];
+          const totalSteps = steps.length;
+          const isGfScreen = currentStep === totalSteps;
+          const step = !isGfScreen ? steps[currentStep] : null;
+
           return (
             <div>
               <button className="back-btn" onClick={() => { setSelectedModule(null); setActiveView("curriculum"); }}>
@@ -378,6 +456,10 @@ export default function App() {
                     {DIFFICULTY_LABELS[mod.difficulty]}
                   </span>
                   <span className="tag">{mod.hours} Stunden</span>
+                  {content?.estimatedMinutes && (
+                    <span className="tag">⏱ {content.estimatedMinutes} Min</span>
+                  )}
+                  <LayerBadge layer={content?.layerLevel ?? 1} />
                 </div>
                 <h1 className="module-title">{mod.title}</h1>
                 <p className="module-summary">{mod.summary}</p>
@@ -390,28 +472,159 @@ export default function App() {
                 </div>
               </div>
 
-              <section className="content-section analogy-section">
-                <h3 className="section-label analogy-label">💡 Analogie zum Verstehen</h3>
-                <p className="section-text">{mod.analogy}</p>
-              </section>
+              {/* Step progress bar */}
+              {totalSteps > 0 && (
+                <div className="step-progress-row">
+                  {steps.map((_, i) => (
+                    <button key={i} className={`step-dot ${i === currentStep ? "active" : i < currentStep ? "done" : ""}`}
+                      style={i === currentStep ? { background: phase?.color } : i < currentStep ? { background: `${phase?.color}60` } : {}}
+                      onClick={() => setCurrentStep(i)} title={steps[i].title} />
+                  ))}
+                  <button className={`step-dot step-dot-gf ${isGfScreen ? "active" : currentStep >= totalSteps ? "done" : ""}`}
+                    style={isGfScreen ? { background: "#8B5CF6" } : {}}
+                    onClick={() => setCurrentStep(totalSteps)} title="GF-Zusammenfassung" />
+                </div>
+              )}
 
-              <section className="content-section">
-                <h3 className="section-label">Kernwissen</h3>
-                {mod.keyPoints.map((point, i) => (
-                  <div key={i} className="key-point">
-                    <span className="key-point-number" style={{ color: phase?.color }}>
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <p className="key-point-text">{point}</p>
+              {/* Step counter */}
+              {totalSteps > 0 && (
+                <div className="step-counter">
+                  {isGfScreen ? "GF-Zusammenfassung" : `Schritt ${currentStep + 1} von ${totalSteps}`}
+                </div>
+              )}
+
+              {/* STEP CONTENT */}
+              {!isGfScreen && step && (
+                <>
+                  <section className="content-section step-section">
+                    <div className="step-section-header">
+                      <h2 className="step-title">{step.title}</h2>
+                      <LayerBadge layer={step.layer ?? content?.layerLevel ?? 1} small />
+                    </div>
+                    <Markdown text={step.content} />
+                  </section>
+
+                  {step.analogy && (
+                    <section className="content-section analogy-section">
+                      <h3 className="section-label analogy-label">💡 Analogie zum Verstehen</h3>
+                      <p className="section-text">{step.analogy}</p>
+                    </section>
+                  )}
+
+                  {step.consultingRelevance && (
+                    <section className="content-section consulting-section">
+                      <h3 className="section-label consulting-label">🎯 Beratungsrelevanz</h3>
+                      <p className="section-text">{step.consultingRelevance}</p>
+                    </section>
+                  )}
+
+                  {/* Step navigation */}
+                  <div className="step-nav">
+                    <button className="step-nav-btn" onClick={() => setCurrentStep(s => Math.max(0, s - 1))}
+                      disabled={currentStep === 0}>
+                      ← Zurück
+                    </button>
+                    <button className="step-nav-btn step-nav-next"
+                      style={{ background: phase?.color }}
+                      onClick={() => setCurrentStep(s => Math.min(totalSteps, s + 1))}>
+                      {currentStep === totalSteps - 1 ? "GF-Zusammenfassung →" : "Weiter →"}
+                    </button>
                   </div>
-                ))}
-              </section>
+                </>
+              )}
 
-              <section className="content-section example-section">
-                <h3 className="section-label example-label">🏭 Praxisbeispiel Mittelstand</h3>
-                <p className="section-text">{mod.practicalExample}</p>
-              </section>
+              {/* GF SUMMARY SCREEN */}
+              {isGfScreen && content?.gfSummary && (
+                <>
+                  <section className="content-section gf-section">
+                    <h3 className="section-label gf-label">👔 Für die Geschäftsführung</h3>
+                    <p className="section-text gf-text">{content.gfSummary}</p>
+                  </section>
 
+                  <div className="step-nav">
+                    <button className="step-nav-btn" onClick={() => setCurrentStep(totalSteps - 1)}>
+                      ← Letzter Schritt
+                    </button>
+                    <button className="step-nav-btn step-nav-next"
+                      style={{ background: STATUS_COLORS.done }}
+                      onClick={() => { cycleStatus(mod.id); }}>
+                      ✓ Als erledigt markieren
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Fallback if no rich content */}
+              {!content && (
+                <>
+                  <section className="content-section analogy-section">
+                    <h3 className="section-label analogy-label">💡 Analogie zum Verstehen</h3>
+                    <p className="section-text">{mod.analogy}</p>
+                  </section>
+                  <section className="content-section">
+                    <h3 className="section-label">Kernwissen</h3>
+                    {mod.keyPoints.map((point, i) => (
+                      <div key={i} className="key-point">
+                        <span className="key-point-number" style={{ color: phase?.color }}>
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                        <p className="key-point-text">{point}</p>
+                      </div>
+                    ))}
+                  </section>
+                  <section className="content-section example-section">
+                    <h3 className="section-label example-label">🏭 Praxisbeispiel Mittelstand</h3>
+                    <p className="section-text">{mod.practicalExample}</p>
+                  </section>
+                </>
+              )}
+
+              {/* WEITERFÜHRENDE RESSOURCEN */}
+              {backlog?.resources && backlog.resources.length > 0 && (
+                <section className="content-section">
+                  <h3 className="section-label">📚 Weiterführende Ressourcen</h3>
+                  <div className="resources-grid">
+                    {backlog.resources.map((res, i) => (
+                      <div key={i} className={`resource-card ${res.status === "coming-soon" ? "resource-coming-soon" : ""}`}>
+                        <div className="resource-card-top">
+                          <span className="resource-type-badge">{res.type}</span>
+                          <LayerBadge layer={res.layer ?? 1} small />
+                        </div>
+                        <div className="resource-title">{res.title}</div>
+                        <p className="resource-summary">{res.summary}</p>
+                        {res.status === "coming-soon"
+                          ? <span className="resource-link-placeholder">🔗 Coming Soon</span>
+                          : <a href={res.url} className="resource-link" target="_blank" rel="noopener noreferrer">→ Zur Ressource</a>
+                        }
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* WEITERFÜHRENDE THEMEN (BACKLOG) */}
+              {backlog?.upcomingTopics && backlog.upcomingTopics.length > 0 && (
+                <section className="content-section">
+                  <h3 className="section-label">🚀 Weiterführende Themen — Was dich erwartet</h3>
+                  <p className="backlog-intro">Diese Themen werden auf höheren Wissenslayern verfügbar sein. Sie wachsen mit dir mit.</p>
+                  <div className="backlog-grid">
+                    {backlog.upcomingTopics.map((topic, i) => (
+                      <div key={i} className="backlog-card">
+                        <div className="backlog-card-top">
+                          <LayerBadge layer={topic.layer} small />
+                          <span className="backlog-status">
+                            {topic.status === "coming-soon" ? "In Vorbereitung" : topic.status === "in-progress" ? "In Arbeit" : "Bereit"}
+                          </span>
+                        </div>
+                        <div className="backlog-title">{topic.title}</div>
+                        <p className="backlog-summary">{topic.summary}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Connections always visible */}
               <section className="content-section">
                 <h3 className="section-label">🔗 Verbundene Module</h3>
                 <div className="connections-row">
