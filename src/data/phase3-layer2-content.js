@@ -1083,4 +1083,109 @@ Die MCP-Spezifikation definiert ein Discovery-Protokoll: Clients können einen R
     gfSummary: `MCP ist der Standard der KI-Systemintegration vereinheitlicht — einmal implementiert, für alle KI-Modelle nutzbar. Der Aufbau einer unternehmensweiten MCP-Infrastruktur ist eine einmalige Investition die bei jeder neuen KI-Anwendung dividiert.`
   },
 
+  "context-engineering": {
+    title: "Context Engineering & Agenten-Architektur (Layer 2)",
+    layerLevel: 2,
+    estimatedMinutes: 65,
+    steps: [
+      {
+        title: "Rules vs. Skills: Die richtige Architektur-Entscheidung",
+        content: `Layer 1 hat das 5-Ebenen-Modell vorgestellt. Layer 2 geht tiefer: Die häufigste Architektur-Entscheidung in der Praxis ist Rules vs. Skills — und die Grenze verschwimmt.
+
+**Der entscheidende Faktor: Wartbarkeit.**
+Verhindern Sie redundante Pflege. Wenn mehrere Skills dieselbe Konvention nutzen, gehört sie in eine Rule — nicht in jeden Skill separat.
+
+**Entscheidungsbaum:**
+Braucht die KI eine bestimmte Instruktion?
+→ **A: Ist es eine Formatierungs- oder Verhaltens-Vorgabe für bestimmte Dateitypen?**
+  → Nutze Ebene 2 (Rules). Verhindert redundante Pflege.
+→ **B: Ist es ein aktiver, mehrstufiger Arbeitsprozess?**
+  → Nutze Ebene 3 (Skills). Versetzt die KI in eine Rolle mit konkreten Checklisten.
+
+**Praktische Rule-Beispiele:**
+- \`frontend.md\` (gilt für /src/components/): "Verwende immer TypeScript, keine any-Types, Tailwind für Styles"
+- \`api.md\` (gilt für /src/api/): "Alle Endpunkte mit Zod validieren, Fehler immer als JSON mit code + message"
+- \`testing.md\` (gilt für /tests/): "Given-When-Then Format, keine Mock-Datenbanken, immer gegen echte DB testen"
+
+**Praktische Skill-Beispiele:**
+- \`deploy.md\`: Schritt-für-Schritt Deployment-Checkliste (Build, Test, Migration, Push, Verify)
+- \`new-feature.md\`: Feature-Erstellungs-Workflow (Spec lesen → Architektur skizzieren → DB-Migration → Backend → Frontend → Tests)
+- \`debug.md\`: Systematisches Debugging (Logs lesen → Hypothesis → Test → Fix → Regression-Test)
+
+**Token-Optimierung durch YAML-Header:**
+Skills haben einen YAML-Header mit Name, Tools und Description. Die KI scannt bei einer neuen Aufgabe zunächst nur diese Header — erst wenn ein Skill als relevant eingestuft wird, liest sie die vollständigen Instruktionen. Das spart erheblich Token bei großen Skill-Bibliotheken.
+
+**Für Unternehmensprojekte:** Rules und Skills sind keine persönlichen Präferenzen — sie sind geteilte Konventionen. Im Team sorgen sie dafür, dass jeder Agent (und jeder Entwickler) nach denselben Regeln arbeitet.`,
+        analogy: `Wie Unternehmens-Handbücher vs. Prozessanweisungen: Das Mitarbeiterhandbuch (Rules) gilt immer und überall und definiert Grundverhalten — Kleiderordnung, Kommunikationston, Datenschutz-Grundsätze. Prozessanweisungen (Skills) sind spezifische Schritt-für-Schritt-Anleitungen für bestimmte Aufgaben — Reklamationsbearbeitung, Neukundenanlage, Jahresabschluss. Beide sind nötig, aber für verschiedene Zwecke.`,
+        consultingRelevance: `Wenn du für einen Kunden ein KI-Agenten-System aufbaust, ist die Rules/Skills-Architektur dein erstes Deliverable — noch vor dem ersten Prototyp. Es zeigt dem Kunden: Hier denkt jemand systematisch, nicht nur "prompt and pray". Es ist auch ein natürlicher Ausgangspunkt für die Dokumentation des Systems, die der Kunde später für Wartung und Erweiterung braucht.`
+      },
+      {
+        title: "Subagenten und Token-Effizienz: Isolation als Architektur-Prinzip",
+        content: `Subagenten sind nicht nur ein Performance-Feature — sie sind ein Architektur-Prinzip. Der Hauptagent orchestriert, Subagenten spezialisieren sich.
+
+**Wie Subagenten funktionieren:**
+- Der Hauptagent startet Subagenten über das Agent Tool
+- Jeder Subagent hat ein **isoliertes Kontextfenster** — er weiß nichts von der Hauptsession
+- Subagenten haben ihr eigenes Toolset (nur was sie für ihre Aufgabe brauchen)
+- Nach Abschluss senden sie **ein destilliertes Ergebnis** zurück — keine rohen Logs
+
+**Token-Effizienz durch Isolation:**
+Statt dass ein einziger Agent den vollständigen Frontend-Code, Backend-Code und Datenbank-Schema gleichzeitig im Kontext hat, arbeiten drei isolierte Agenten:
+- Frontend-Agent: Nur UI-Komponenten und Design-Tokens
+- Backend-Agent: Nur API-Logik und Datenbank-Schema
+- QA-Agent: Nur Testergebnisse und Bug-Reports
+
+Das zentrale Kontextfenster bleibt sauber. Context Rot wird strukturell verhindert.
+
+**Drei Subagenten-Pattern:**
+
+**1. Parallele Verarbeitung** (unabhängige Aufgaben gleichzeitig):
+Hauptagent verarbeitet 50 Lieferantenbewertungen → startet 5 Subagenten die je 10 Bewertungen analysieren → sammelt 5 Berichte → erstellt Gesamtauswertung. Speedup: 5x.
+
+**2. Spezialisierung** (verschiedene Expertise pro Aufgabe):
+Hauptagent bekommt Kundenanfrage → Subagent 1 prüft Lagerbestand (SAP-Zugang) → Subagent 2 kalkuliert Preis (Pricing-Logik) → Subagent 3 formuliert Angebot (Kommunikation). Jeder Subagent ist für genau eine Sache zuständig.
+
+**3. Sandbox-Testing** (sicheres Experimentieren):
+Hauptagent will Datenbankschema ändern → Subagent testet die Änderung in einer isolierten Umgebung → berichtet Ergebnis → Hauptagent entscheidet ob er weitermacht. Keine Seiteneffekte auf den Hauptzustand.
+
+**Wichtig: Subagenten sind nicht kostenlos.**
+Jeder Subagent-Start kostet Token für den Kontext-Aufbau. Für triviale Aufgaben (ein einfacher API-Call) sind Subagenten Overkill. Der Break-Even liegt bei Aufgaben die mehr als ~5 Minuten dauern oder parallele Verarbeitung rechtfertigen.`,
+        analogy: `Wie eine Unternehmensstruktur mit Abteilungen: Der CEO (Hauptagent) orchestriert. Einkauf, Produktion, Vertrieb (Subagenten) spezialisieren sich. Die CEO-Besprechung hat keine Produktions-Detailpläne auf dem Tisch — die kommen als Zusammenfassung. Das verhindert, dass der CEO im Micro-Management versinkt und behält den strategischen Überblick.`,
+        consultingRelevance: `Subagenten-Architektur ist der Schlüssel zu KI-Lösungen, die wirklich skalieren. Wenn ein Kunde sagt "Wir müssen täglich 1.000 Dokumente verarbeiten", ist die Antwort nicht "ein besserer Prompt" sondern eine Subagenten-Architektur. Das ist ein anderes Gespräch — und ein anderes Preisschild. Erkenne wann Parallelisierung nötig ist.`
+      },
+      {
+        title: "Context Engineering im Beratungskontext: Was du dem Kunden vermitteln musst",
+        content: `Context Engineering ist primär ein Entwicklungskonzept — aber als Berater musst du es in Geschäftssprache übersetzen. Drei Argumente, die bei Kunden ziehen:
+
+**Argument 1: Verlässlichkeit**
+"Ihr KI-System soll morgen genauso arbeiten wie heute — auch wenn das Projekt größer geworden ist." Context Engineering ist die Voraussetzung dafür. Ohne es: Das System degradiert mit jeder neuen Anforderung.
+
+**Argument 2: Wartbarkeit**
+"Wenn wir in einem Jahr eine neue Anforderung haben, müssen wir nicht von vorne beginnen." Eine saubere 5-Ebenen-Architektur ist erweiterbar. Vibe-Coding-Systeme sind es nicht.
+
+**Argument 3: Investitionsschutz**
+"Die ETH Zürich hat gezeigt: Mehr Kontext ist nicht gleich besser. Strukturierter Kontext ist besser." Das schützt die Investition — Token-Kosten werden effizienter, System-Performance bleibt stabil.
+
+**Was du nicht sagen solltest:**
+- ~~"Wir brauchen eine claude.md"~~ (zu technisch)
+- ~~"Context Rot ist ein Problem"~~ (klingt nach Produktfehler)
+- ~~"Das Kontextfenster läuft über"~~ (verwirrend für Nicht-Techniker)
+
+**Was du stattdessen sagst:**
+- "Wir definieren klare Spielregeln für den Agenten — wie ein Onboarding-Handbuch"
+- "Das System wächst strukturiert mit Ihren Anforderungen"
+- "Ich baue das so, dass Ihr IT-Team es selbst warten kann"
+
+**Das Cheat Sheet als Kommunikationswerkzeug:**
+Die Tabelle aus der Präsentation (Ebene / Trigger / Scope / Datei-Typ / Best Use-Case) ist ein ausgezeichnetes Kommunikationsmittel für technische Stakeholder. Nicht für den GF — aber für den IT-Leiter der wissen will, wie das System aufgebaut ist.
+
+**Dein Differenzierungsmerkmal:**
+Die meisten KI-Berater liefern funktionierende Demos. Wenige liefern skalierbare Systeme. Context Engineering ist der Unterschied. Positioniere es als "Engineering-Mindset statt Demo-Mentalität".`,
+        analogy: `Wie saubere Buchhaltung vs. Schuhkarton: Beide "funktionieren" für die Steuererklärung in Jahr 1. In Jahr 3, wenn das Unternehmen gewachsen ist und jemand neues die Buchhaltung übernimmt, zeigt sich der Unterschied. Context Engineering ist die professionelle Buchhaltung — mehr Aufwand initial, massiv weniger Aufwand langfristig.`,
+        consultingRelevance: `Context Engineering als Beratungsleistung zu positionieren erhöht deinen Tagessatz rechtfertigbar. Es ist nicht "KI einrichten" (Commodity), sondern "skalierbare KI-Architektur aufbauen" (Expertise). Der Unterschied liegt nicht im Zeitaufwand — er liegt im systematischen Denken, das du mitbringst.`
+      }
+    ],
+    gfSummary: `"KI-Systeme ohne Architektur-Disziplin scheitern nicht sofort — sie scheitern schleichend. Nach Wochen oder Monaten arbeiten sie unzuverlässig, sind nicht wartbar und können nicht erweitert werden. Context Engineering ist die Antwort: strukturierte Regeln, klare Verantwortlichkeiten für Teilaufgaben, und ein System das mit Ihren Anforderungen wächst. Der Invest in saubere Architektur von Anfang an halbiert die Wartungskosten langfristig."`
+  },
+
 };

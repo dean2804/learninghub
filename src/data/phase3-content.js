@@ -783,5 +783,92 @@ MCP wird sich als Standard etablieren. Immer mehr Softwareanbieter werden eigene
       }
     ],
     gfSummary: `"MCP ist der neue Standard dafür, wie KI auf Ihre Unternehmenssysteme zugreift. Wir bauen einmalig einen standardisierten Connector zu Ihrem ERP, Ihrem Dokumentensystem und Ihrer E-Mail — und jedes KI-Modell kann darüber zugreifen. Das schützt Ihre Investition und gibt Ihnen Flexibilität bei der Wahl des KI-Anbieters."`
+  },
+
+  "context-engineering": {
+    title: "Context Engineering & Agenten-Architektur",
+    layerLevel: 1,
+    estimatedMinutes: 50,
+    steps: [
+      {
+        title: "Das Context Rot Problem: Warum KI-Agenten scheitern",
+        content: `KI-Agenten scheitern selten an mangelnder Intelligenz. Sie scheitern an Context Rot.
+
+**Was ist Context Rot?**
+Je mehr Informationen in das Kontextfenster eines LLMs geladen werden, desto systematischer nimmt seine Zuverlässigkeit ab. Das ist kein Bug — es ist ein strukturelles Merkmal. Ab einem Schwellenwert (Context Overflow) beginnt die KI zu halluzinieren, vergisst frühere Instruktionen und überschreibt funktionierenden Code.
+
+**Die zwei Symptome in der Praxis:**
+- Die KI überschreibt funktionierenden Code, den sie 30 Minuten früher selbst geschrieben hat
+- Sie vergisst Architektur-Vorgaben und Dateipfade, die zu Beginn definiert wurden
+
+**Warum passiert das?**
+LLMs priorisieren Informationen am Anfang und Ende des Kontextfensters. Inhalte in der Mitte — oft genau die wichtigen Instruktionen — werden systematisch weniger berücksichtigt. Bei langen Sessions "versinken" Regeln und Strukturen in diesem Mittelteil.
+
+**Die ETH Zürich Studie bestätigt: Weniger ist mehr.**
+Automatisch generierte, ausufernde Kontextdateien verschlechtern die Performance von KI-Coding-Agenten messbar. Präzises Context Engineering schlägt volumetrisches Context-Befüllen.
+
+**Die zwei Grundregeln dagegen:**
+1. **Projektstatus in Dateien, nicht ins Gedächtnis.** Alle Projektentscheidungen müssen in persistenten Dateien gesichert werden — nie auf den Gesprächsverlauf vertrauen.
+2. **Nur laden, was aktuell gebraucht wird.** Der Tech-Stack ist immer relevant. Feature-Specs dürfen das Gedächtnis nur belasten, wenn sie aktiv bearbeitet werden.`,
+        analogy: `Stell dir einen hochkompetenten Projektmanager vor, der nach einem 8-Stunden-Meeting seine ersten Notizen vergessen hat. Er war nicht dumm — sein Arbeitsgedächtnis war überladen. KI-Modelle haben dasselbe Problem, nur messbarer und vorhersehbarer. Context Engineering ist das Equivalent zu: "Schreib die wichtigsten Entscheidungen sofort auf, hol dir nur relevante Akten ins Büro."`,
+        consultingRelevance: `Wenn du einem Kunden erklärst warum sein KI-Prototyp nach 2 Stunden aufgehört hat zuverlässig zu arbeiten, reicht "Context Window voll" als Erklärung nicht. Zeig die Decay Curve: KI-Zuverlässigkeit nimmt ab Projektgröße systematisch ab. Das ist der Einstieg ins Gespräch über Architektur — und deinen Mehrwert als Berater.`
+      },
+      {
+        title: "Das 5-Ebenen-Modell: Strukturierter Kontext statt Chaos",
+        content: `Um Context Rot zu vermeiden, liefert Claude Code eine 5-Ebenen-Architektur. Von einem globalen Fundament bis zu hochspezialisierten, isolierten Werkzeugen. Jede Ebene fügt kontrollierte Komplexität hinzu.
+
+**Ebene 1 — Das Fundament (claude.md)**
+Wird bei jeder Session automatisch geladen. Maximal eine Seite. Enthält: Projektbeschreibung (1-3 Sätze), Tech-Stack, Projektstruktur. Core-Prompt: "Dateien immer lesen, niemals raten."
+
+**Ebene 2 — Kontextabhängige Regeln (Rules)**
+Liegen im \`.claude/rules/\` Verzeichnis. Erweitern das Fundament nur wenn die KI in spezifischen Verzeichnissen arbeitet. Vorteil: Die KI lädt beim Arbeiten an UI-Komponenten keine Backend-Testing-Logik ins Kontextfenster.
+
+**Ebene 3 — Wiederverwendbare Workflows (Skills)**
+Im \`.claude/skills/\` Ordner. Aufrufbar via Slash-Command oder durch automatische KI-Entscheidung. Token-Schonung: Die KI scannt erst nur die YAML-Header aller Skills — erst bei Relevanz liest sie die vollständigen Instruktionen.
+
+**Ebene 4 — Isolierte Subagenten**
+Für komplexe, parallele Aufgaben. Subagenten haben eigene, isolierte Kontextfenster — sie wissen nichts von der Hauptsession. Nach Abschluss senden sie nur ein destilliertes Ergebnis zurück.
+
+**Ebene 5 — MCP Server (Externe Systeme)**
+Das Model Context Protocol (MCP) fungiert als universelle Schnittstelle. Claude Code greift auf externe Systeme zu: Context7 (live Dokumentation), Supabase (Datenbanken), Figma (Layouts). Einmal konfiguriert, immer verfügbar.
+
+**Der entscheidende Vorteil:** Alle 5 Ebenen greifen nahtlos ineinander, ohne das zentrale Kontextfenster zu überladen.`,
+        analogy: `Wie ein gut organisiertes Büro: Es gibt immer sichtbare Kern-Dokumente auf dem Schreibtisch (Ebene 1), Ordner die sich öffnen wenn man im richtigen Raum ist (Ebene 2), Checklisten für wiederkehrende Aufgaben (Ebene 3), spezialisierte Kollegen für komplexe Teilprojekte (Ebene 4), und direkte Leitungen zu externen Systemen (Ebene 5). Alles da wenn man es braucht, nichts das unnötig Platz wegnimmt.`,
+        consultingRelevance: `Das 5-Ebenen-Modell ist nicht nur für deine eigene Arbeit mit Claude Code. Es ist ein Denkrahmen für jede Agenten-Architektur beim Kunden: Welche Informationen müssen immer verfügbar sein? Welche nur kontextabhängig? Wo brauche ich Isolation? Wo externe Systeme? Diese Fragen stellst du beim Architektur-Design jedes KI-Projekts.`
+      },
+      {
+        title: "Vibe Coding vs. Context Engineering: Die strategische Entscheidung",
+        content: `**Vibe Coding** ist die natürliche Arbeitsweise ohne System: Man beschreibt was man will, die KI baut es, man reagiert auf Ergebnisse, die KI passt an. Für einen Prototyp an einem Nachmittag ist das produktiv. Für ein skalierbares System ist es ein Rezept für Chaos.
+
+**Was Vibe Coding in der Praxis bedeutet:**
+- Unkontrolliertes Chaos im Kontextfenster
+- Die KI verliert den Überblick über das Gesamtsystem
+- Änderungen in Teil A brechen Teil B
+- Reproduzierbarkeit: null
+
+**Context Engineering** ist die systematische Alternative:
+- Geplante Software-Architektur
+- Kontrollierte Komplexität in jeder Ebene
+- Agenten-Systeme, die mit dem Projekt wachsen können
+- Reproduzierbar, wartbar, skalierbar
+
+**Der Paradigmenwechsel:** "Baue ein Login-Feature" ohne Context Engineering bedeutet, dass die KI rät was das Login-Feature leisten muss, in welchem Tech-Stack es gebaut wird, welche Konventionen gelten. Mit Context Engineering: Ebene 1 validiert den Tech-Stack aus claude.md, Ebene 2 lädt die Auth-Konventionen, Ebene 3 triggert den Feature-Checklisten-Skill, Ebene 4 baut Frontend und Backend parallel.
+
+**Wann Vibe Coding okay ist:**
+- Erste Exploration eines neuen Konzepts
+- Wegwerf-Prototypen (Ergebnis ist nicht das Ziel, Lernen ist es)
+- Persönliche Skripte ohne Produktionsanspruch
+
+**Wann Context Engineering Pflicht ist:**
+- Jedes System das länger als eine Session lebt
+- Projekte mit mehreren Dateien und Komponenten
+- Alles was Kunden sehen oder nutzen werden
+
+📎 *Vertiefung: Präsentation "AI_Agent_Architecture_Blueprint.pdf" und Podcast "Fünf_Ebenen_gegen_Context_Rot.m4a" im Ordner /Dateien/*`,
+        analogy: `Wie Bauprojekte: Ein Gartenhaus baust du am Wochenende ohne Architekten (Vibe Coding). Eine Fabrikhalle ohne Statiker, Bauplan und Genehmigungen zu bauen ist fahrlässig (Vibe Coding im Produktionssystem). Context Engineering ist der Bauplan — nicht bürokratischer Overhead, sondern der Grund warum das Gebäude stehen bleibt.`,
+        consultingRelevance: `Du wirst bei Kunden auf beide Typen treffen: Die die alles per Vibe Coding machen und sich wundern warum ihre KI-Projekte nach zwei Monaten nicht mehr funktionieren. Und die, die so viel Angst vor Chaos haben, dass sie gar nicht anfangen. Dein Job: Zeige wann Struktur nötig ist — und verschaffe ihr den richtigen Rahmen.`
+      }
+    ],
+    gfSummary: `"Die meisten KI-Projekte scheitern nicht an der KI, sondern an fehlender Struktur. Wenn ein KI-Agent ohne Plan arbeitet, verliert er nach kurzer Zeit den Überblick — ähnlich wie ein Mitarbeiter ohne Einarbeitung, Handbücher und klare Verantwortlichkeiten. Context Engineering ist die Antwort: klare Regeln, strukturierter Informationsfluss, isolierte Teilaufgaben. Das Ergebnis ist ein KI-System, das mit Ihrem Projekt wächst statt daran zu scheitern."`
   }
 };

@@ -367,6 +367,25 @@ export const CURRICULUM = {
           connections: ["erp-as-datasource", "databases", "dsgvo-euai"]
         },
         {
+          id: "context-engineering",
+          title: "Context Engineering & Agenten-Architektur",
+          difficulty: 3,
+          hours: 5,
+          tags: ["KI-Architektur", "Praxis", "Tools"],
+          summary: "Vom unstrukturierten Vibe Coding zur skalierbaren Agenten-Architektur mit dem 5-Ebenen-System.",
+          analogy: "Vibe Coding ist wie ein Küchenchef, der ohne Rezept kocht — manchmal grandios, oft chaotisch, nie reproduzierbar. Context Engineering ist das strukturierte Kochbuch: Schritt für Schritt, mit klaren Anweisungen für jeden. Die KI kocht besser, wenn sie genau weiß was sie kochen soll.",
+          keyPoints: [
+            "Context Rot = Je mehr ins Kontextfenster geladen wird, desto systematischer nimmt die KI-Qualität ab. Ab Context Overflow: Halluzinationen, vergessene Vorgaben, überschriebener Code.",
+            "Das 5-Ebenen-Modell: claude.md (immer aktiv) → Rules (ordnerbasiert) → Skills (aufgabenspezifisch) → Subagents (isoliert/parallel) → MCP Server (extern).",
+            "Regel 1: Projektstatus in Dateien, nicht ins Gedächtnis. Nie auf Session-Erinnerungen verlassen.",
+            "Regel 2: Nur laden, was aktuell gebraucht wird. Tech-Stack immer, Feature-Specs nur wenn aktiv bearbeitet.",
+            "ETH Zürich Studie: Weniger ist mehr. Ausufernde, automatisch generierte Kontextdateien verschlechtern die Performance.",
+            "Rules vs. Skills: Rules für Formatierungs-/Verhaltensvorgaben (ordnerbasiert). Skills für aktive, mehrstufige Arbeitsprozesse (aufgabenpezifisch)."
+          ],
+          practicalExample: "Du baust einen Agenten der SAP-Bestelldaten analysiert. Ohne Context Engineering: Nach 30 Minuten vergisst er Architektur-Vorgaben, überschreibt funktionierenden Code. Mit Context Engineering: claude.md definiert den Tech-Stack, eine Rule lädt SAP-Konventionen, ein Skill orchestriert den Report-Workflow, ein Subagent verarbeitet die Datenbankabfragen isoliert — skalierbar, reproduzierbar.",
+          connections: ["agent-design", "mcp-tools", "tools-infra", "agents-workflows"]
+        },
+        {
           id: "mcp-tools",
           title: "MCP & Tool-Integration",
           difficulty: 3,

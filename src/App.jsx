@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { supabase } from "./lib/supabase";
 import { CURRICULUM, ALL_MODULES, NOTIFICATIONS, DIFFICULTY_LABELS, STATUS_LABELS, STATUS_COLORS } from "./data/curriculum";
 import { PHASE1_CONTENT } from "./data/phase1-content";
@@ -210,19 +210,46 @@ export default function App() {
     saveTimeout.current = setTimeout(() => saveNote(moduleId, value), 1000);
   };
 
-  const filteredModules = searchQuery.trim()
-    ? ALL_MODULES.filter(m =>
-        m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
-    : [];
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim() || searchQuery.length < 2) return [];
+    const q = searchQuery.toLowerCase();
+    const results = [];
+    const seen = new Set();
 
-  const openModule = (mod) => {
+    ALL_MODULES.forEach(m => {
+      const add = (matchLabel, layer = 1, step = 0) => {
+        const key = `${m.id}-${matchLabel}`;
+        if (!seen.has(key)) { seen.add(key); results.push({ module: m, matchLabel, layer, step }); }
+      };
+
+      // Modul-Metadaten
+      if (m.title.toLowerCase().includes(q) || m.summary.toLowerCase().includes(q) ||
+          m.tags.some(t => t.toLowerCase().includes(q))) add("Modul");
+      if (m.keyPoints?.some(k => k.toLowerCase().includes(q))) add("keyPoints");
+      if (m.analogy?.toLowerCase().includes(q) || m.practicalExample?.toLowerCase().includes(q)) add("Praxisbeispiel");
+
+      // Step-Inhalte aller Layer
+      const mc = ALL_CONTENT[m.id];
+      if (mc) {
+        Object.entries(mc.layers).forEach(([ln, lc]) => {
+          lc.steps?.forEach((s, idx) => {
+            if (s.title?.toLowerCase().includes(q) || s.content?.toLowerCase().includes(q) ||
+                s.analogy?.toLowerCase().includes(q) || s.consultingRelevance?.toLowerCase().includes(q)) {
+              add(`L${ln} · ${s.title?.slice(0, 35)}`, parseInt(ln), idx);
+            }
+          });
+        });
+      }
+    });
+
+    return results.slice(0, 12);
+  }, [searchQuery]);
+
+  const openModule = (mod, layer = 1, step = 0) => {
     setSelectedModule(mod);
     setActiveView("module");
-    setCurrentStep(0);
-    setCurrentLayer(1);
+    setCurrentStep(step);
+    setCurrentLayer(layer);
     setSearchQuery("");
   };
 
@@ -267,17 +294,20 @@ export default function App() {
           </button>
           <div className="search-wrapper">
             <span className="search-icon">⌕</span>
-            <input className="search-input" placeholder="Module durchsuchen..."
+            <input className="search-input" placeholder="Inhalte durchsuchen..."
               value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-            {searchQuery && filteredModules.length > 0 && (
+            {searchQuery.length >= 2 && (
               <div className="search-results">
-                {filteredModules.map(m => (
-                  <div key={m.id} className="search-result-item" onClick={() => openModule(m)}>
-                    <span className="search-dot" style={{ color: m.phaseColor }}>●</span>
-                    {m.title}
-                    <span className="search-preview">{m.summary.slice(0, 50)}...</span>
+                {searchResults.length > 0 ? searchResults.map((r, i) => (
+                  <div key={i} className="search-result-item"
+                    onClick={() => openModule(r.module, r.layer, r.step)}>
+                    <span className="search-dot" style={{ color: r.module.phaseColor }}>●</span>
+                    <span className="search-result-title">{r.module.title}</span>
+                    <span className="search-match-tag">{r.matchLabel}</span>
                   </div>
-                ))}
+                )) : (
+                  <div className="search-no-results">Keine Ergebnisse für "{searchQuery}"</div>
+                )}
               </div>
             )}
           </div>
